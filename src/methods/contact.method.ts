@@ -20,6 +20,7 @@ export const createContactMethod = async (contact: Contact): Promise<ContactResp
     const existingContactQuery = `
         SELECT * FROM contact 
         WHERE phoneNumber = $1 OR email = $2
+        ORDER BY id ASC
     `;
 
     const existingValues = [contact.phoneNumber, contact.email];
@@ -29,8 +30,18 @@ export const createContactMethod = async (contact: Contact): Promise<ContactResp
         const existingRes = await client.query(existingContactQuery, existingValues);
         for (let row of existingRes.rows) {
             if (row.linkprecedence === 'primary') {
-                existingContact = row;
-                response.primaryContactId = row.id;
+                if (response.primaryContactId) {
+                    row.linkprecedence = 'secondary';
+                    row.linkedId = response.primaryContactId;
+                    await client.query(
+                        `UPDATE contact SET linkPrecedence = 'secondary', linkedId = $1 WHERE id = $2`,
+                        [response.primaryContactId, row.id]
+                    );
+                    response.secondaryContactIds.push(row.id);
+                } else {
+                    existingContact = row;
+                    response.primaryContactId = row.id;
+                }
             } else {
                 response.secondaryContactIds.push(row.id);
             }
@@ -67,19 +78,7 @@ export const createContactMethod = async (contact: Contact): Promise<ContactResp
     const values = [contact.phoneNumber, contact.email, contact.linkedId, contact.linkPrecedence];
 
     try {
-        const res = await client.query(query, values);
-        if (res.rows[0].linkprecedence === 'primary') {
-            response.primaryContactId = res.rows[0].id;
-        } else if (!response.secondaryContactIds.includes(res.rows[0].id)) {
-            response.secondaryContactIds.push(res.rows[0].id);
-        }
-        if (res.rows[0].email && !response.emails.includes(res.rows[0].email)) {
-            response.emails.push(res.rows[0].email);
-        }
-        if (res.rows[0].phonenumber && !response.phoneNumbers.includes(res.rows[0].phonenumber)) {
-            response.phoneNumbers.push(res.rows[0].phonenumber);
-        }
-        
+        await client.query(query, values);
         return response;
     } catch (error) {
         console.error('Error creating contact:', error);
