@@ -32,7 +32,7 @@ export const createContact = async (req: Request, res: Response): Promise<void> 
         createContactTable(); // Ensure the table exists before creating a contact
         const contact = req.body;
         const createdContact = await createContactMethod(contact);
-        res.status(200).json({contact: createdContact, success: true});
+        res.status(200).json({contact: createdContact});
     } catch (error) {
         console.error('Error creating contact:', error);
         res.status(500).json({error: 'Internal Server Error'});
